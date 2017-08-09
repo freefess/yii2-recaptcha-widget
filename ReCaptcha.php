@@ -11,6 +11,7 @@ use Yii;
 use yii\base\InvalidConfigException;
 use yii\helpers\Html;
 use yii\widgets\InputWidget;
+use yii\helpers\Inflector;
 
 /**
  * Yii2 Google reCAPTCHA widget.
@@ -43,12 +44,12 @@ class ReCaptcha extends InputWidget
     const JS_API_URL = '//www.google.com/recaptcha/api.js';
 
     const THEME_LIGHT = 'light';
-    const THEME_DARK = 'dark';
+    const THEME_DARK  = 'dark';
 
     const TYPE_IMAGE = 'image';
     const TYPE_AUDIO = 'audio';
 
-    const SIZE_NORMAL = 'normal';
+    const SIZE_NORMAL  = 'normal';
     const SIZE_COMPACT = 'compact';
 
     /** @var string Your sitekey. */
@@ -81,6 +82,8 @@ class ReCaptcha extends InputWidget
     /** @var array Additional html widget options, such as `class`. */
     public $widgetOptions = [];
 
+    public $inputId;
+
     public function run()
     {
         if (empty($this->siteKey)) {
@@ -94,15 +97,20 @@ class ReCaptcha extends InputWidget
         }
 
         $view = $this->view;
-        $view->registerJsFile(
-            self::JS_API_URL . '?hl=' . $this->getLanguageSuffix(),
-            ['position' => $view::POS_HEAD, 'async' => true, 'defer' => true]
-        );
+        if ($this->hasModel()) {
+            $this->inputId = Html::getInputId($this->model, $this->attribute);
+        } else {
+            $this->inputId = 'recaptcha-' . $this->name;
+        }
+        $recaptchaOnloadCallback = 'recaptchaOnloadCallback_' . Inflector::id2camel($this->inputId);
+        $view->registerJsFile(self::JS_API_URL .
+            "?onload={$recaptchaOnloadCallback}&render=explicit&hl=" .
+            $this->getLanguageSuffix(), ['position' => $view::POS_END, 'async' => true, 'defer' => true]);
 
         $this->customFieldPrepare();
 
         $divOptions = [
-            'class' => 'g-recaptcha',
+            'class'        => 'g-recaptcha',
             'data-sitekey' => $this->siteKey
         ];
         if (!empty($this->jsCallback)) {
@@ -136,7 +144,7 @@ class ReCaptcha extends InputWidget
     protected function getLanguageSuffix()
     {
         $currentAppLanguage = Yii::$app->language;
-        $langsExceptions = ['zh-CN', 'zh-TW', 'zh-TW'];
+        $langsExceptions    = ['zh-CN', 'zh-TW', 'zh-TW'];
 
         if (strpos($currentAppLanguage, '-') === false) {
             return $currentAppLanguage;
@@ -152,30 +160,31 @@ class ReCaptcha extends InputWidget
     protected function customFieldPrepare()
     {
         $view = $this->view;
-        if ($this->hasModel()) {
-            $inputName = Html::getInputName($this->model, $this->attribute);
-            $inputId = Html::getInputId($this->model, $this->attribute);
-        } else {
-            $inputName = $this->name;
-            $inputId = 'recaptcha-' . $this->name;
-        }
 
+
+        $jsCallback = 'recaptchaCallback_' . Inflector::id2camel($this->inputId);
         if (empty($this->jsCallback)) {
-            $jsCode = "var recaptchaCallback = function(response){jQuery('#{$inputId}').val(response);};";
+            $jsCode = "var {$jsCallback} = function(response){jQuery('#{$this->inputId}').val(response);};";
         } else {
-            $jsCode = "var recaptchaCallback = function(response){jQuery('#{$inputId}').val(response); {$this->jsCallback}(response);};";
+            $jsCode =
+                "var {$jsCallback} = function(response){jQuery('#{$this->inputId}').val(response); {$this->jsCallback}(response);};";
         }
-        $this->jsCallback = 'recaptchaCallback';
+        $this->jsCallback = $jsCallback;
 
+        $jsExpiredCallback = 'recaptchaExpiredCallback_' . Inflector::id2camel($this->inputId);
         if (empty($this->jsExpiredCallback)) {
-            $jsExpCode = "var recaptchaExpiredCallback = function(){jQuery('#{$inputId}').val('');};";
+            $jsExpCode = "var {$jsExpiredCallback} = function(){jQuery('#{$this->inputId}').val('');};";
         } else {
-            $jsExpCode = "var recaptchaExpiredCallback = function(){jQuery('#{$inputId}').val(''); {$this->jsExpiredCallback}();};";
+            $jsExpCode =
+                "var {$jsExpiredCallback} = function(){jQuery('#{$this->inputId}').val(''); {$this->jsExpiredCallback}();};";
         }
-        $this->jsExpiredCallback = 'recaptchaExpiredCallback';
-
+        $this->jsExpiredCallback = $jsExpiredCallback;
+        $recaptchaOnloadCallback = 'recaptchaOnloadCallback_' . Inflector::id2camel($this->inputId);;
+        $jsOnload = "var {$recaptchaOnloadCallback} = function(){jQuery('.g-recaptcha').html('');
+        jQuery('.g-recaptcha').each(function(){grecaptcha.render(jQuery(this).get(0),{'sitekey':jQuery(this).data('sitekey'),'callback':window[jQuery(this).data('callback')]});});};";
+        $view->registerJs($jsOnload, $view::POS_BEGIN, 'recaptcha-onload');
         $view->registerJs($jsCode, $view::POS_BEGIN);
         $view->registerJs($jsExpCode, $view::POS_BEGIN);
-        echo Html::input('hidden', $inputName, null, ['id' => $inputId]);
+        echo Html::input('hidden', $this->inputId, null, ['id' => $this->inputId]);
     }
 }
