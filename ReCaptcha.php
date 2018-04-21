@@ -69,6 +69,10 @@ class ReCaptcha extends InputWidget
 
     /** @var int The tabindex of the widget */
     public $tabindex;
+    
+     /** @var bool Is need script reload */
+    public $needReload = false;
+    
 
     /** @var string Your JS callback function that's executed when the user submits a successful CAPTCHA response. */
     public $jsCallback;
@@ -102,12 +106,14 @@ class ReCaptcha extends InputWidget
         } else {
             $this->inputId = 'recaptcha-' . $this->name;
         }
-        $recaptchaOnloadCallback = 'recaptchaOnloadCallback_' . Inflector::id2camel($this->inputId);
-        $view->registerJsFile(self::JS_API_URL .
-            "?onload={$recaptchaOnloadCallback}&render=explicit&hl=" .
-            $this->getLanguageSuffix(), ['position' => $view::POS_END, 'async' => true, 'defer' => true]);
+        if($this->needReload){
+            $recaptchaOnloadCallback = 'recaptchaOnloadCallback_' . Inflector::id2camel($this->inputId);
+            $view->registerJsFile(self::JS_API_URL .
+                "?onload={$recaptchaOnloadCallback}&render=explicit&hl=" .
+                $this->getLanguageSuffix(), ['position' => $view::POS_END, 'async' => true, 'defer' => true]);
 
-        $this->customFieldPrepare();
+            $this->customFieldPrepare();
+        }
 
         $divOptions = [
             'class'        => 'g-recaptcha',
