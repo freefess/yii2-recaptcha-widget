@@ -71,7 +71,7 @@ class ReCaptcha extends InputWidget
     public $tabindex;
     
     /** @var bool Is need script reload */
-    public $needReload = false;
+    public $needReload = true;
 
     /** @var string Your JS callback function that's executed when the user submits a successful CAPTCHA response. */
     public $jsCallback;
